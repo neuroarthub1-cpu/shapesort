@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ball Redirect</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0e2a33;--paper:#f4faf7;--ink:#12313b;--mint:#5fd3b0;--sun:#ffcf5c;--coral:#ff7a6b}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--paper);font-family:Nunito,system-ui,sans-serif;overflow:hidden}
+#c{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+video{display:none}
+.panel{position:absolute;inset:0;overflow:auto;background:rgba(14,42,51,.97);padding:24px;display:none}
+.panel.on{display:block}
+.wrap{max-width:780px;margin:0 auto}
+h1{font-size:2.2rem;margin:0 0 4px;font-weight:800}
+p.sub{margin:0 0 18px;opacity:.8}
+h2{font-size:1.05rem;margin:20px 0 8px;font-weight:800;color:var(--mint)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+label.f{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:.9rem}
+select,input[type=number]{font:inherit;padding:8px;border-radius:8px;border:0;background:var(--paper);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--mint)}
+label.k{display:flex;gap:8px;align-items:center;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips label{padding:10px 16px;border-radius:99px;background:#1d4553;cursor:pointer;font-weight:700}
+.chips input{display:none}
+.chips label:has(input:checked){background:var(--mint);color:var(--ink)}
+button{font:inherit;font-weight:800;border:0;border-radius:12px;padding:12px 22px;background:var(--sun);color:var(--ink);cursor:pointer}
+button.g{background:#1d4553;color:var(--paper)}
+button:disabled{opacity:.5}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+#hud{position:absolute;top:0;left:0;right:0;padding:12px 16px;display:none;justify-content:space-between;align-items:center;font-weight:800;font-size:1.3rem;pointer-events:none}
+#hud .b{pointer-events:auto;display:flex;gap:8px}
+#hud button{padding:8px 14px;font-size:.9rem}
+#msg{position:absolute;left:0;right:0;top:45%;transform:translateY(-50%);text-align:center;font-size:1.8rem;font-weight:800;pointer-events:none;padding:0 24px;text-shadow:0 2px 8px #000a}
+#msg .bar{width:240px;height:8px;background:#fff3;border-radius:9px;margin:14px auto 0;overflow:hidden}
+#msg .bar i{display:block;height:100%;background:var(--mint)}
+.stat{display:grid;grid-template-columns:1fr auto;gap:6px 24px;max-width:460px;font-weight:700}
+.stat b{color:var(--sun)}
+.note{font-size:.85rem;opacity:.75;margin-top:14px}
+</style></head><body>
+<canvas id="c"></canvas><video id="v" playsinline muted></video>
+<div id="hud"><div id="tm"></div><div id="sc"></div><div class="b"><button id="skip" class="g">Skip step</button><button id="pause" class="g">Pause</button><button id="quit" class="g">Exit</button></div></div>
+<div id="msg"></div>
+
+<div id="setup" class="panel on"><div class="wrap">
+<h1>Ball Redirect</h1>
+<p class="sub">Use your arms to bump each ball into the basket that matches it. The camera video stays on this device and is never uploaded.</p>
+<h2>Body parts that bump the ball</h2><div id="parts" class="chips"></div>
+<h2>Difficulty</h2>
+<div class="grid">
+<label class="f">Start level (0 easiest, 8 hardest)<select id="lvl"></select></label>
+<label class="k"><input type="checkbox" id="adapt" checked>Adapt level to performance</label>
+<label class="f">Balls enter from<select id="bias"><option value="B">Both sides</option><option value="L">Left side</option><option value="R">Right side</option></select></label>
+<label class="f">Basket layout<select id="lay"><option value="opp">Opposite side (ball must cross)</option><option value="same">Same side</option><option value="mix">Mixed</option></select></label>
+<label class="k"><input type="checkbox" id="ord">Ordered mode (deliver 1, 2, 3 in order)</label>
+<label class="f">Balls per round (ordered)<select id="seq"><option>2</option><option selected>3</option><option>4</option></select></label>
+<label class="f">Ball speed <span id="sv"></span><input type="range" id="spd" min=".6" max="1.4" step=".1" value="1"></label>
+<label class="f">Bumper size <span id="zv"></span><input type="range" id="size" min=".8" max="2" step=".1" value="1.3"></label>
+<label class="f">Reach range used <span id="rv"></span><input type="range" id="reach" min="60" max="100" step="5" value="90"></label>
+<label class="f">Session length<select id="dur"><option value="60">1 minute</option><option value="120" selected>2 minutes</option><option value="180">3 minutes</option></select></label>
+</div>
+<h2>Display</h2>
+<div class="grid">
+<label class="k"><input type="checkbox" id="cam" checked>Show dimmed camera image</label>
+<label class="k"><input type="checkbox" id="calm">Calm mode (fewer effects, quieter)</label>
+</div>
+<p style="margin-top:24px"><button id="go" disabled>Loading tracking…</button></p>
+<p class="note" id="status">Stand back so your arms are fully in view. The torso needs your shoulders and hips visible, so leave it off if you are seated behind a table. Effects fade at higher levels. Session data is a practice log from a webcam, not a validated measure.</p>
+</div></div>
+
+<div id="results" class="panel"><div class="wrap">
+<h1>Session complete</h1><div id="rs" class="stat"></div>
+<p class="note">Practice log from webcam tracking. Adaptive difficulty means totals are not comparable across sessions unless the level is the same. Use it to compare like with like on the same setup.</p>
+<p style="margin-top:20px;display:flex;gap:10px"><button id="csv">Download CSV</button><button id="again" class="g">Back to settings</button></p>
+</div></div>
+
+<script type="module">
+import {PoseLandmarker,FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+const BASE="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const MODEL="https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
+const $=s=>document.querySelector(s);
+const cv=$('#c'),ctx=cv.getContext('2d'),vid=$('#v');
+// Pose indices. Mirrored view: person's left = screen left.
+const LM={ls:11,rs:12,le:13,re:14,lw:15,rw:16,lh:23,rh:24};
+const PARTS={la:'left arm',ra:'right arm',tr:'torso'};
+const NEED={la:['ls','lw'],ra:['rs','rw'],tr:['ls','rs','lh','rh']};
+const C=['#5fd3b0','#ffcf5c'],SYM=['○','△'];
+// per level: [ball radius (fraction of min side), gravity (screen heights/s²), balls at once, basket width (fraction of width)]
+const LV=[[.065,.10,1,.28],[.06,.12,1,.26],[.057,.14,1,.24],[.054,.17,2,.22],[.05,.20,2,.20],[.048,.24,2,.19],[.045,.28,3,.18],[.042,.33,3,.17],[.04,.38,3,.16]];
+
+$('#parts').innerHTML=Object.entries(PARTS).map(([k,n],i)=>`<label><input type="checkbox" value="${k}" ${k!='tr'?'checked':''}>${n[0].toUpperCase()+n.slice(1)}</label>`).join('');
+$('#lvl').innerHTML=LV.map((_,i)=>`<option value="${i}">${i}</option>`).join('');
+const ids=['lvl','adapt','bias','lay','ord','seq','spd','size','reach','dur','cam','calm'];
+function readCfg(){const c={};ids.forEach(i=>{const e=$('#'+i);c[i]=e.type=='checkbox'?e.checked:e.value});c.parts=[...document.querySelectorAll('#parts input:checked')].map(e=>e.value);return c}
+try{const s=JSON.parse(localStorage.getItem('ballRedirectCfg')||'null');if(s){ids.forEach(i=>{const e=$('#'+i);if(s[i]!=null){e.type=='checkbox'?e.checked=s[i]:e.value=s[i]}});document.querySelectorAll('#parts input').forEach(e=>e.checked=(s.parts||[]).includes(e.value))}}catch(e){}
+const lab=()=>{$('#sv').textContent=$('#spd').value+'x';$('#zv').textContent=$('#size').value+'x';$('#rv').textContent=$('#reach').value+'%'};lab();['spd','size','reach'].forEach(i=>$('#'+i).oninput=lab);
+let cfg;
+
+function oneEuro(mc=1.5,beta=8){let px=null,dx=0,pt=0;const a=(c,dt)=>{const r=6.2832*c*dt;return r/(r+1)};
+ return(x,t)=>{if(px===null){px=x;pt=t;return x}const dt=Math.max((t-pt)/1000,.001);pt=t;dx+=a(1,dt)*((x-px)/dt-dx);px+=a(mc+beta*Math.abs(dx),dt)*(x-px);return px}}
+const T={};for(const k in LM)T[k]={x:.5,y:.5,vis:0,fx:oneEuro(),fy:oneEuro()};
+let mid=.5,W=640,H=480,pose=null,G={state:'idle'},ac=null;
+
+(async()=>{try{const fs=await FilesetResolver.forVisionTasks(BASE+'/wasm');
+ const mk=d=>PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:MODEL,delegate:d},runningMode:'VIDEO',numPoses:1});
+ try{pose=await mk('GPU')}catch(e){pose=await mk('CPU')}
+ $('#go').disabled=false;$('#go').textContent='Start'}catch(e){$('#status').textContent='Tracking model failed to load. Check the internet connection and reload.'}})();
+
+function fit(){const a=vid.videoWidth?vid.videoWidth/vid.videoHeight:4/3;let w=innerWidth,h=w/a;if(h>innerHeight){h=innerHeight;w=h*a}
+ const d=devicePixelRatio||1;W=w;H=h;cv.style.width=w+'px';cv.style.height=h+'px';cv.width=w*d;cv.height=h*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',fit);fit();
+
+function tone(f,d=.1,v=.15){if(!ac)return;const o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;o.frequency.value=f;g.gain.setValueAtTime(v*(cfg.calm?.4:1),t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(ac.destination);o.start(t);o.stop(t+d)}
+
+function track(L,now){if(!L){for(const k in T)T[k].vis=0;return}
+ for(const k in LM){const l=L[LM[k]],t=T[k];t.x=t.fx(1-l.x,now);t.y=t.fy(l.y,now);t.vis=l.visibility??0}
+ if(T.ls.vis>.4&&T.rs.vis>.4)mid=(T.ls.x+T.rs.x)/2}
+
+const msg=(h,p)=>{$('#msg').innerHTML=h+(p!=null?`<div class="bar"><i style="width:${Math.min(100,p*100)}%"></i></div>`:'')};
+const names=()=>cfg.parts.map(k=>PARTS[k]).join(', ');
+const shuf=n=>{const a=Array.from({length:n},(_,i)=>i+1);for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+
+// ---- colliders: forearm (elbow to just past wrist) and torso (mid-shoulder to mid-hip) ----
+function build(){const o={},m=Math.min(W,H),P=k=>[T[k].x*W,T[k].y*H],th0=.03*m*cfg.size;
+ for(const [k,e,w] of [['la','le','lw'],['ra','re','rw']]){if(!cfg.parts.includes(k)||T[w].vis<.5)continue;
+  const Wr=P(w);let a,b,th=th0;
+  if(T[e].vis>=.5){const E=P(e);a=E;b=[Wr[0]+(Wr[0]-E[0])*.33,Wr[1]+(Wr[1]-E[1])*.33]}else{a=Wr;b=Wr;th*=1.5}
+  o[k]={a,b,th,c:k=='la'?'#8fb8ff':'#ff9ec0'}}
+ G.noTorso=false;
+ if(cfg.parts.includes('tr')){if(NEED.tr.every(k=>T[k].vis>=.5)){const ls=P('ls'),rs=P('rs'),lh=P('lh'),rh=P('rh');
+  o.tr={a:[(ls[0]+rs[0])/2,(ls[1]+rs[1])/2],b:[(lh[0]+rh[0])/2,(lh[1]+rh[1])/2],th:Math.max(.04*m,Math.abs(ls[0]-rs[0])*.3),c:'#f4faf7'}}else G.noTorso=true}
+ return o}
+
+function touch(f,k,qx){if(G.gt-(f.cd[k]??-1e9)<250)return;f.cd[k]=G.gt;f.touches++;if(f.first==null)f.first=G.gt-f.t0;f.last=k;G.ct[k]=(G.ct[k]||0)+1;
+ if(k!='tr'&&(k=='la'?qx>G.mid*W:qx<G.mid*W)){f.cross=true;G.cx++}
+ if(G.level<7&&!cfg.calm)tone(300+Math.min(f.touches,6)*40,.06,.08)}
+
+function collide(f,s){const ax=s.a[0],ay=s.a[1],dx=s.b[0]-ax,dy=s.b[1]-ay,l2=dx*dx+dy*dy;
+ let t=l2>1?((f.x-ax)*dx+(f.y-ay)*dy)/l2:0;t=Math.max(0,Math.min(1,t));
+ const qx=ax+t*dx,qy=ay+t*dy;let ex=f.x-qx,ey=f.y-qy,d=Math.hypot(ex,ey);const R=f.r+s.th;
+ if(d>=R)return;if(d<1e-3){ex=0;ey=-1;d=1}const nx=ex/d,ny=ey/d;
+ const sx=s.va[0]+t*(s.vb[0]-s.va[0]),sy=s.va[1]+t*(s.vb[1]-s.va[1]);
+ const vn=(f.vx-sx)*nx+(f.vy-sy)*ny;
+ if(vn<0){f.vx-=1.8*vn*nx;f.vy-=1.8*vn*ny;const sp=Math.hypot(f.vx,f.vy),mx=1.3*H;if(sp>mx){f.vx*=mx/sp;f.vy*=mx/sp}touch(f,s.k,qx)}
+ f.x=qx+nx*(R+.5);f.y=qy+ny*(R+.5)}
+
+function physics(dt){const cur=build(),prev=G.prev||cur,g=LV[G.level][1]*H*cfg.spd,n=Math.max(1,Math.min(6,Math.ceil(dt/8))),h=dt/1000/n,cap=2.2*H;
+ const vf=(q,r)=>{let x=(r[0]-q[0])/(dt/1000),y=(r[1]-q[1])/(dt/1000);const s=Math.hypot(x,y);if(s>cap){x*=cap/s;y*=cap/s}return[x,y]};
+ for(let i=1;i<=n;i++){const u=i/n,segs=[];
+  for(const k in cur){const c=cur[k],p=prev[k]||c,L=(q,r)=>[q[0]+(r[0]-q[0])*u,q[1]+(r[1]-q[1])*u];
+   segs.push({k,a:L(p.a,c.a),b:L(p.b,c.b),va:vf(p.a,c.a),vb:vf(p.b,c.b),th:c.th})}
+  for(const f of G.balls){f.vy+=g*h;f.x+=f.vx*h;f.y+=f.vy*h;
+   if(f.x<f.r){f.x=f.r;f.vx=Math.abs(f.vx)*.7}if(f.x>W-f.r){f.x=W-f.r;f.vx=-Math.abs(f.vx)*.7}
+   for(const s of segs)collide(f,s)}}
+ G.prev=cur;G.cur=cur}
+
+const bx=i=>{const Lv=LV[G.level],bw=Lv[3]*W,A=G.level>=6?(G.level-5)*.015*W:0;return(i?G.reg.x1*W-bw/2:G.reg.x0*W+bw/2)+A*Math.sin(G.gt/1800+i*2)};
+
+function spawn(num){const Lv=LV[G.level],side=cfg.bias=='B'?(Math.random()<.5?'L':'R'):cfg.bias,
+ c=cfg.lay=='mix'?(Math.random()<.5?0:1):(cfg.lay=='opp'?(side=='L'?1:0):(side=='L'?0:1)),r=Lv[0]*Math.min(W,H),g=G.reg,m=G.mid*W;
+ const x0=side=='L'?g.x0*W:Math.max(m,g.x0*W),x1=side=='L'?Math.min(m,g.x1*W):g.x1*W;
+ const x=Math.max(r,Math.min(W-r,x0+Math.random()*Math.max(10,x1-x0)));
+ G.balls.push({x,y:-r,vx:(Math.random()-.5)*.06*W,vy:0,r,c,side,num,t0:G.gt,first:null,last:null,touches:0,cross:false,cd:{},need:(c==0?'L':'R')!=side})}
+
+function ev(res,f){G.log.push([(G.gt/1000).toFixed(2),res,f.c,f.side,f.need?1:0,f.last?PARTS[f.last]:'none',f.first==null?'':Math.round(f.first),f.touches,G.level].join(','))}
+function outcome(v){G.win.push(v);if(G.win.length>=8){const r=G.win.reduce((a,b)=>a+b)/8;
+ if(cfg.adapt){if(r>=.85)G.level=Math.min(8,G.level+1);else if(r<=.6)G.level=Math.max(0,G.level-1)}G.maxL=Math.max(G.maxL,G.level);G.win=[]}}
+
+function resolve(){const gt=G.gt,Lv=LV[G.level],bw=Lv[3]*W,bh=.13*H;
+ for(const f of [...G.balls]){let k=-1;
+  if(f.y>H-bh&&f.vy>0)for(let i=0;i<2;i++)if(Math.abs(f.x-bx(i))<bw/2)k=i;
+  if(k<0&&f.y<=H+f.r)continue;
+  G.balls.splice(G.balls.indexOf(f),1);
+  const res=k<0?'miss':f.c!=k?'wrong basket':(cfg.ord&&f.num!=G.exp)?'order error':'delivered';
+  ev(res,f);const x=G.x[f.need?'t':'f'];x.n++;
+  if(res=='delivered'){G.del++;x.ok++;if(f.first!=null)G.firsts.push(f.first);outcome(1);
+   if(!cfg.calm&&G.level<7){G.pops.push({x:bx(k)/W,y:(H-bh)/H,r:bw/2,t:gt});tone(660,.15,.15)}
+   if(cfg.ord){G.exp++;if(G.exp>cfg.seq){G.exp=1;G.queue=shuf(+cfg.seq);G.nextSp=gt+1200}}}
+  else{if(res=='miss')G.miss++;else if(res=='wrong basket')G.wrong++;else G.ordErr++;outcome(0);if(cfg.ord)G.queue.push(f.num)}
+  if(!cfg.ord)G.nextSp=gt+700}}
+
+function play(dt){G.gt+=dt;const gt=G.gt,Lv=LV[G.level];if(gt>=cfg.dur*1000)return finish();
+ if(cfg.ord){if(gt>=G.nextSp&&G.queue.length){spawn(G.queue.shift());G.nextSp=gt+1400}}
+ else if(gt>=G.nextSp&&G.balls.length<Lv[2]){spawn(0);G.nextSp=gt+900}
+ physics(dt);resolve();G.pops=G.pops.filter(p=>gt-p.t<450)}
+
+function region(){const e=G.env;let x0=.15,x1=.85;if(e.x1>e.x0){const cx=(e.x0+e.x1)/2,hw=Math.max((e.x1-e.x0)/2,.25)*cfg.reach/100;x0=cx-hw;x1=cx+hw}
+ G.reg={x0:Math.max(.06,Math.min(x0,G.mid-.1)),x1:Math.min(.94,Math.max(x1,G.mid+.1))}}
+function toReach(){G.state='reach';G.tm=0;G.mid=mid;G.env={x0:1,x1:0}}
+function toCount(){region();G.state='count';G.tm=0;$('#skip').style.display='none'}
+function startPlay(){G={...G,state:'play',gt:0,balls:[],pops:[],log:[],del:0,wrong:0,ordErr:0,miss:0,level:cfg.lvl,maxL:cfg.lvl,win:[],nextSp:800,ct:{},cx:0,x:{t:{ok:0,n:0},f:{ok:0,n:0}},exp:1,queue:cfg.ord?shuf(+cfg.seq):[],prev:null,firsts:[]};
+ $('#skip').style.display='none';msg('')}
+
+let last=performance.now();
+function update(now){const dt=Math.min(now-last,100);last=now;const s=G.state;if(s=='frame'||s=='reach'||s=='count')G.tm+=dt;
+ if(s=='frame'){const ok=cfg.parts.every(p=>NEED[p].every(k=>{const t=T[k];return t.vis>.5&&t.x>.03&&t.x<.97&&t.y>.03&&t.y<.97}));G.ok=ok?G.ok+dt:0;
+  msg(`Step back until your ${names()} show green. Hold still.`,G.ok/1500);if(G.ok>=1500)toReach()}
+ else if(s=='reach'){for(const k of ['lw','rw']){if(!cfg.parts.includes(k=='lw'?'la':'ra')||T[k].vis<=.5)continue;const e=G.env,t=T[k];e.x0=Math.min(e.x0,t.x);e.x1=Math.max(e.x1,t.x)}
+  msg(`Reach slowly side to side as far as is comfortable. ${Math.ceil((6000-G.tm)/1000)}`,G.tm/6000);if(G.tm>=6000)toCount()}
+ else if(s=='count'){msg(String(Math.max(1,Math.ceil((3000-G.tm)/1000))));if(G.tm>=3000)startPlay()}
+ else if(s=='play')play(dt)}
+
+function draw(){ctx.fillStyle='#0e2a33';ctx.fillRect(0,0,W,H);
+ if(cfg&&cfg.cam&&vid.readyState>1){ctx.save();ctx.translate(W,0);ctx.scale(-1,1);ctx.globalAlpha=.28;ctx.drawImage(vid,0,0,W,H);ctx.restore()}
+ const s=G.state;if(s=='idle'||s=='done')return;const m=Math.min(W,H);ctx.textAlign='center';ctx.textBaseline='middle';
+ if(s=='frame'){for(const p of cfg.parts)for(const k of NEED[p]){const t=T[k];ctx.beginPath();ctx.arc(t.x*W,t.y*H,m*.025,0,6.3);ctx.fillStyle=t.vis>.5?'#5fd3b0':'#ff7a6b';ctx.fill()}return}
+ if(s=='reach'||s=='count'){const g=s=='count'?G.reg:{x0:G.env.x0,x1:G.env.x1};if(g.x1>g.x0){ctx.strokeStyle='#5fd3b066';ctx.setLineDash([8,8]);ctx.lineWidth=2;ctx.strokeRect(g.x0*W,.1*H,(g.x1-g.x0)*W,.8*H);ctx.setLineDash([])}}
+ if(s=='play'||s=='pause'||s=='count'){
+  if(s!='count'){const Lv=LV[G.level],bw=Lv[3]*W,bh=.13*H;
+   for(let i=0;i<2;i++){const x=bx(i);ctx.fillStyle=C[i]+'33';ctx.fillRect(x-bw/2,H-bh,bw,bh);ctx.strokeStyle=C[i];ctx.lineWidth=4;ctx.strokeRect(x-bw/2,H-bh,bw,bh);ctx.fillStyle=C[i];ctx.font=`${bh*.6}px Nunito,sans-serif`;ctx.fillText(SYM[i],x,H-bh/2)}
+   for(const f of G.balls){ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,6.3);ctx.fillStyle=C[f.c];ctx.fill();ctx.fillStyle='#12313b';
+    if(cfg.ord){ctx.font=`800 ${f.r*1.1}px Nunito,sans-serif`;ctx.fillText(f.num,f.x,f.y-f.r*.12);ctx.font=`${f.r*.6}px Nunito,sans-serif`;ctx.fillText(SYM[f.c],f.x,f.y+f.r*.55)}
+    else{ctx.font=`${f.r*1.1}px Nunito,sans-serif`;ctx.fillText(SYM[f.c],f.x,f.y)}}
+   for(const p of G.pops){const a=(G.gt-p.t)/450;ctx.globalAlpha=1-a;ctx.beginPath();ctx.arc(p.x*W,p.y*H,p.r*(1+a),0,6.3);ctx.strokeStyle='#fff';ctx.lineWidth=5;ctx.stroke();ctx.globalAlpha=1}}}
+ const cur=G.cur||(cfg?build():{});
+ for(const k in cur){const c=cur[k];ctx.lineCap='round';ctx.strokeStyle=c.c;ctx.globalAlpha=k=='tr'?.22:.85;ctx.lineWidth=c.th*2;ctx.beginPath();ctx.moveTo(c.a[0],c.a[1]);ctx.lineTo(c.b[0],c.b[1]);ctx.stroke();ctx.globalAlpha=1}
+ if(s=='play'){if(G.noTorso){ctx.fillStyle='#ffcf5c';ctx.font='700 16px Nunito,sans-serif';ctx.fillText('Torso not visible: shoulders and hips need to be in view',W/2,H*.93-30)}
+  const left=Math.max(0,cfg.dur*1000-G.gt)/1000;$('#tm').textContent=Math.floor(left/60)+':'+String(Math.floor(left%60)).padStart(2,'0');$('#sc').textContent=(cfg.ord?'Next: '+G.exp+'   ':'')+'⭐ '+G.del}}
+
+function loop(now){requestAnimationFrame(loop);
+ try{if(pose&&vid.readyState>=2&&vid.currentTime!==loop.lt&&G.state!='idle'&&G.state!='done'){loop.lt=vid.currentTime;const r=pose.detectForVideo(vid,now);track(r.landmarks&&r.landmarks[0],now)}
+ update(now);draw()}catch(e){console.error(e);msg('Error: '+e.message)}}
+requestAnimationFrame(loop);
+
+async function begin(){cfg=readCfg();if(!cfg.parts.length){$('#status').textContent='Choose at least one body part.';return}
+ for(const k of ['lvl','spd','size','reach','dur','seq'])cfg[k]=+cfg[k];
+ try{localStorage.setItem('ballRedirectCfg',JSON.stringify(readCfg()))}catch(e){}
+ ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+ try{if(!vid.srcObject){vid.srcObject=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'},audio:false});await vid.play();fit()}}
+ catch(e){$('#status').textContent='Camera not available. Allow camera access and use https.';return}
+ $('#setup').classList.remove('on');$('#hud').style.display='flex';$('#skip').style.display='';$('#tm').textContent='';$('#sc').textContent='';
+ G={state:'frame',tm:0,ok:0,balls:[],pops:[],gt:0}}
+$('#go').onclick=begin;
+$('#skip').onclick=()=>{if(G.state=='frame')toReach();else if(G.state=='reach')toCount()};
+const pause=()=>{if(G.state=='play'){G.state='pause';msg('Paused');$('#pause').textContent='Resume'}else if(G.state=='pause'){G.state='play';msg('');$('#pause').textContent='Pause'}};
+$('#pause').onclick=pause;addEventListener('keydown',e=>{if(e.key=='Escape')pause()});
+function home(){G={state:'idle'};msg('');$('#hud').style.display='none';$('#results').classList.remove('on');$('#setup').classList.add('on');$('#pause').textContent='Pause'}
+$('#quit').onclick=home;$('#again').onclick=home;
+
+const mean=a=>a.length?a.reduce((x,y)=>x+y)/a.length:null;
+function finish(){G.state='done';msg('');$('#hud').style.display='none';
+ const tot=G.del+G.wrong+G.ordErr+G.miss,pc=x=>x.n?Math.round(100*x.ok/x.n)+'% ('+x.ok+' of '+x.n+')':'n/a',f=v=>v==null?'n/a':Math.round(v)+' ms';
+ const rows=[['Balls delivered',G.del],['Wrong basket',G.wrong],...(cfg.ord?[['Order errors',G.ordErr]]:[]),['Missed (fell past baskets)',G.miss],['Success rate',tot?Math.round(100*G.del/tot)+'%':'n/a'],['Highest level reached',G.maxL],
+  ['Mean time to first contact',f(mean(G.firsts))],['Contacts: left arm / right arm / torso',`${G.ct.la||0} / ${G.ct.ra||0} / ${G.ct.tr||0}`],['Arm contacts past the midline',G.cx],
+  ['Success when ball had to cross',pc(G.x.t)],['Success when same side',pc(G.x.f)]];
+ $('#rs').innerHTML=rows.map(r=>`<span>${r[0]}</span><b>${r[1]}</b>`).join('');$('#results').classList.add('on')}
+$('#csv').onclick=()=>{const t='time_s,result,ball_colour,entry_side,needs_cross,last_contact,first_contact_ms,touches,level\n'+G.log.join('\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'}));a.download='ball-redirect-session.csv';a.click()};
+</script></body></html>
